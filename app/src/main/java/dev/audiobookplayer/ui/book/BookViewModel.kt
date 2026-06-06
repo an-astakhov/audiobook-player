@@ -6,27 +6,59 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.audiobookplayer.AppContainer
-import dev.audiobookplayer.domain.model.BookSummary
+import dev.audiobookplayer.domain.model.BookDetail
+import dev.audiobookplayer.domain.model.DurationFormatter
+import dev.audiobookplayer.playback.controller.PlaybackState
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 data class BookUiState(
     val isLoading: Boolean = true,
-    val book: BookSummary? = null,
-)
+    val book: BookDetail? = null,
+    val playbackState: PlaybackState = PlaybackState(),
+) {
+    val isActiveBook: Boolean
+        get() = book?.id == playbackState.activeBookId
+
+    val isPlaying: Boolean
+        get() = isActiveBook && playbackState.isPlaying
+
+    val effectivePositionMs: Long
+        get() = if (isActiveBook) playbackState.currentPositionMs else book?.currentPositionMs ?: 0L
+
+    val effectiveDurationMs: Long
+        get() = when {
+            isActiveBook && playbackState.durationMs > 0L -> playbackState.durationMs
+            else -> book?.durationMs ?: 0L
+        }
+
+    val progressPercent: Int
+        get() = DurationFormatter.progressPercent(
+            positionMs = effectivePositionMs,
+            durationMs = effectiveDurationMs,
+        )
+
+    val positionLabel: String
+        get() = DurationFormatter.formatPlaybackPosition(effectivePositionMs)
+
+    val progressLabel: String
+        get() = "${DurationFormatter.formatElapsed(effectivePositionMs)} / ${DurationFormatter.formatDuration(effectiveDurationMs)}"
+}
 
 class BookViewModel(
-    appContainer: AppContainer,
-    bookId: String,
+    private val appContainer: AppContainer,
+    private val bookId: String,
 ) : ViewModel() {
     val uiState: StateFlow<BookUiState> = appContainer.libraryRepository
         .observeBook(bookId)
-        .map { book ->
+        .combine(appContainer.playbackController.state) { book, playbackState ->
             BookUiState(
                 isLoading = false,
                 book = book,
+                playbackState = playbackState,
             )
         }
         .stateIn(
@@ -34,6 +66,37 @@ class BookViewModel(
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = BookUiState(),
         )
+
+    fun onPlayPause() {
+        val currentState = uiState.value
+        if (currentState.book == null) return
+
+        if (currentState.isActiveBook) {
+            appContainer.playbackController.togglePlayPause()
+        } else {
+            viewModelScope.launch {
+                appContainer.playbackController.playBook(bookId)
+            }
+        }
+    }
+
+    fun onSeekBack() {
+        if (uiState.value.isActiveBook) {
+            appContainer.playbackController.seekBack()
+        }
+    }
+
+    fun onSeekForward() {
+        if (uiState.value.isActiveBook) {
+            appContainer.playbackController.seekForward()
+        }
+    }
+
+    fun onSeekTo(positionMs: Long) {
+        if (uiState.value.isActiveBook) {
+            appContainer.playbackController.seekTo(positionMs)
+        }
+    }
 
     companion object {
         fun factory(
@@ -49,4 +112,3 @@ class BookViewModel(
         }
     }
 }
-

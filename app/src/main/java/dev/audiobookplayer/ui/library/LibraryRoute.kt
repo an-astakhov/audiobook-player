@@ -1,5 +1,8 @@
 package dev.audiobookplayer.ui.library
 
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -11,30 +14,34 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.LibraryBooks
 import androidx.compose.material.icons.outlined.Headphones
 import androidx.compose.material.icons.outlined.UploadFile
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -42,6 +49,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.audiobookplayer.AppContainer
 import dev.audiobookplayer.domain.model.BookSummary
+import dev.audiobookplayer.ui.components.BookCoverArtwork
 import dev.audiobookplayer.ui.theme.AudiobookPlayerTheme
 
 @Composable
@@ -50,72 +58,97 @@ fun LibraryRoute(
     onOpenBook: (String) -> Unit,
     onImportBook: () -> Unit,
 ) {
+    val context = LocalContext.current
     val viewModel: LibraryViewModel = viewModel(
         factory = LibraryViewModel.factory(appContainer),
     )
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            }
+            viewModel.importBook(uri)
+        }
+    }
+
+    LaunchedEffect(uiState.value.importErrorMessage) {
+        val message = uiState.value.importErrorMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        viewModel.clearImportError()
+    }
 
     LibraryScreen(
         uiState = uiState.value,
         onOpenBook = onOpenBook,
-        onImportBook = onImportBook,
+        onImportBook = {
+            onImportBook()
+            importLauncher.launch(arrayOf("audio/*", "audio/mp4", "application/mp4"))
+        },
+        snackbarHostState = snackbarHostState,
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(
     uiState: LibraryUiState,
     onOpenBook: (String) -> Unit,
     onImportBook: () -> Unit,
+    snackbarHostState: SnackbarHostState,
 ) {
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text("Library")
-                },
-            )
+        snackbarHost = {
+            SnackbarHost(hostState = snackbarHostState)
         },
+        containerColor = MaterialTheme.colorScheme.background,
     ) { innerPadding ->
-        when {
-            uiState.isLoading -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator()
+        if (uiState.isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator()
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+                    .padding(innerPadding)
+                    .statusBarsPadding()
+                    .navigationBarsPadding(),
+                contentPadding = PaddingValues(start = 22.dp, top = 12.dp, end = 22.dp, bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
+            ) {
+                item {
+                    LibraryHeader(
+                        isImporting = uiState.isImporting,
+                        onImportBook = onImportBook,
+                    )
                 }
-            }
 
-            uiState.books.isEmpty() -> {
-                EmptyLibraryState(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
-                    onImportBook = onImportBook,
-                )
-            }
-
-            else -> {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
-                    contentPadding = PaddingValues(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
+                if (uiState.books.isEmpty()) {
                     item {
-                        Button(onClick = onImportBook) {
-                            Icon(
-                                imageVector = Icons.Outlined.UploadFile,
-                                contentDescription = null,
-                            )
-                            Spacer(modifier = Modifier.size(8.dp))
-                            Text("Import M4B")
-                        }
+                        EmptyLibraryState(
+                            isImporting = uiState.isImporting,
+                            onImportBook = onImportBook,
+                        )
+                    }
+                } else {
+                    item {
+                        Text(
+                            text = "Recently imported",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
 
                     items(uiState.books, key = { it.id }) { book ->
@@ -131,27 +164,76 @@ fun LibraryScreen(
 }
 
 @Composable
+private fun LibraryHeader(
+    isImporting: Boolean,
+    onImportBook: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top,
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                text = "Audiobooks",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = "Library",
+                style = MaterialTheme.typography.headlineMedium,
+            )
+        }
+
+        Button(
+            onClick = onImportBook,
+            enabled = !isImporting,
+            shape = RoundedCornerShape(999.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+        ) {
+            if (isImporting) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    strokeWidth = 2.dp,
+                )
+                Spacer(modifier = Modifier.size(8.dp))
+                Text("Importing")
+            } else {
+                Icon(
+                    imageVector = Icons.Outlined.UploadFile,
+                    contentDescription = null,
+                )
+                Spacer(modifier = Modifier.size(8.dp))
+                Text("Import")
+            }
+        }
+    }
+}
+
+@Composable
 private fun EmptyLibraryState(
-    modifier: Modifier = Modifier,
+    isImporting: Boolean,
     onImportBook: () -> Unit,
 ) {
     Box(
-        modifier = modifier.padding(24.dp),
-        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(580.dp),
+            contentAlignment = Alignment.Center,
     ) {
         Card(
-            shape = RoundedCornerShape(28.dp),
+            shape = RoundedCornerShape(30.dp),
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surface,
             ),
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
                 Surface(
-                    modifier = Modifier.size(56.dp),
-                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.size(62.dp),
+                    shape = RoundedCornerShape(22.dp),
                     color = MaterialTheme.colorScheme.secondaryContainer,
                 ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -169,19 +251,22 @@ private fun EmptyLibraryState(
                         style = MaterialTheme.typography.headlineSmall,
                     )
                     Text(
-                        text = "This scaffold is ready for local M4B import, library persistence, and Media3 playback. File picking is the next milestone.",
+                        text = "Import a local M4B file to start building the library. Metadata and cover art are extracted during import and stored on device.",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
 
-                Button(onClick = onImportBook) {
+                Button(
+                    onClick = onImportBook,
+                    enabled = !isImporting,
+                ) {
                     Icon(
                         imageVector = Icons.Outlined.UploadFile,
                         contentDescription = null,
                     )
                     Spacer(modifier = Modifier.size(8.dp))
-                    Text("Import your first M4B")
+                    Text(if (isImporting) "Importing..." else "Import your first M4B")
                 }
             }
         }
@@ -203,41 +288,72 @@ private fun BookCard(
         ),
     ) {
         Row(
-            modifier = Modifier.padding(18.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.padding(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Box(
                 modifier = Modifier
-                    .size(68.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(MaterialTheme.colorScheme.secondaryContainer),
-                contentAlignment = Alignment.Center,
+                    .size(width = 74.dp, height = 106.dp)
+                    .clip(RoundedCornerShape(18.dp)),
             ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Outlined.LibraryBooks,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                BookCoverArtwork(
+                    title = book.title,
+                    coverImagePath = book.coverImagePath,
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
 
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text(
-                    text = book.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                book.author?.let { author ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = book.title,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        if (!book.author.isNullOrBlank()) {
+                            Text(
+                                text = book.author,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+
                     Text(
-                        text = author,
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = book.durationLabel,
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(5.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(MaterialTheme.colorScheme.secondaryContainer),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(book.progressPercent / 100f)
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.primary),
+                    )
+                }
+
                 Text(
-                    text = "${book.progressPercent}% listened • ${book.durationLabel}",
+                    text = "${book.progressPercent}% listened - ${book.progressLabel}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.tertiary,
                 )
@@ -257,6 +373,7 @@ private fun EmptyLibraryPreview() {
             ),
             onOpenBook = {},
             onImportBook = {},
+            snackbarHostState = remember { SnackbarHostState() },
         )
     }
 }
@@ -271,16 +388,20 @@ private fun PopulatedLibraryPreview() {
                 books = listOf(
                     BookSummary(
                         id = "1",
-                        title = "The Left Hand of Darkness",
-                        author = "Ursula K. Le Guin",
-                        progressPercent = 42,
-                        durationLabel = "9h 18m",
-                        hasChapters = true,
+                        title = "World War Z",
+                        author = "Max Brooks",
+                        progressPercent = 0,
+                        durationLabel = "6h 44m",
+                        progressLabel = "0m / 6h 44m",
+                        coverImagePath = null,
+                        hasChapters = false,
                     ),
                 ),
             ),
             onOpenBook = {},
             onImportBook = {},
+            snackbarHostState = remember { SnackbarHostState() },
         )
     }
 }
+
