@@ -12,6 +12,7 @@ data class BookDetail(
     val progressLabel: String,
     val progressPercent: Int,
     val coverImagePath: String?,
+    val playbackSpeed: Float,
     val hasChapters: Boolean,
     val chapters: List<BookChapter>,
 )

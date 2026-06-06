@@ -60,6 +60,7 @@ import dev.audiobookplayer.domain.model.BookDetail
 import dev.audiobookplayer.playback.controller.PlaybackState
 import dev.audiobookplayer.ui.components.BookCoverArtwork
 import dev.audiobookplayer.ui.theme.AudiobookPlayerTheme
+import java.util.Locale
 import kotlin.math.abs
 
 @Composable
@@ -84,6 +85,7 @@ fun BookRoute(
         onSeekForward = viewModel::onSeekForward,
         onSeekTo = viewModel::onSeekTo,
         onSelectChapter = viewModel::onSelectChapter,
+        onSetPlaybackSpeed = viewModel::onSetPlaybackSpeed,
     )
 }
 
@@ -96,8 +98,12 @@ fun BookScreen(
     onSeekForward: () -> Unit,
     onSeekTo: (Long) -> Unit,
     onSelectChapter: (Long) -> Unit,
+    onSetPlaybackSpeed: (Float) -> Unit,
 ) {
     var isChapterDialogOpen by rememberSaveable(uiState.book?.id) {
+        mutableStateOf(false)
+    }
+    var isSpeedDialogOpen by rememberSaveable(uiState.book?.id) {
         mutableStateOf(false)
     }
 
@@ -204,6 +210,7 @@ fun BookScreen(
                             onSeekBack = onSeekBack,
                             onSeekForward = onSeekForward,
                             onSeekTo = onSeekTo,
+                            onOpenSpeedDialog = { isSpeedDialogOpen = true },
                         )
                     }
 
@@ -229,6 +236,18 @@ fun BookScreen(
                         },
                     )
                 }
+
+                if (isSpeedDialogOpen) {
+                    SpeedDialog(
+                        currentSpeed = uiState.effectivePlaybackSpeed,
+                        isEnabled = uiState.isActiveBook,
+                        onDismiss = { isSpeedDialogOpen = false },
+                        onSelectSpeed = { speed ->
+                            isSpeedDialogOpen = false
+                            onSetPlaybackSpeed(speed)
+                        },
+                    )
+                }
             }
         }
     }
@@ -241,6 +260,7 @@ private fun PlayerPanel(
     onSeekBack: () -> Unit,
     onSeekForward: () -> Unit,
     onSeekTo: (Long) -> Unit,
+    onOpenSpeedDialog: () -> Unit,
 ) {
     val sliderRangeMs = uiState.currentChapterDurationMs.coerceAtLeast(1L)
     var sliderValue by remember(
@@ -373,6 +393,14 @@ private fun PlayerPanel(
                 }
             }
 
+            Button(
+                onClick = onOpenSpeedDialog,
+                enabled = uiState.isActiveBook,
+                shape = RoundedCornerShape(999.dp),
+            ) {
+                Text("Speed ${uiState.playbackSpeedLabel}")
+            }
+
             Text(
                 text = if (uiState.isActiveBook) {
                     uiState.progressLabel
@@ -384,6 +412,54 @@ private fun PlayerPanel(
             )
         }
     }
+}
+
+@Composable
+private fun SpeedDialog(
+    currentSpeed: Float,
+    isEnabled: Boolean,
+    onDismiss: () -> Unit,
+    onSelectSpeed: (Float) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        },
+        title = {
+            Text("Playback speed")
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (!isEnabled) {
+                    Text(
+                        text = "Start playback to change speed.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    SPEED_OPTIONS.forEach { speed ->
+                        val isCurrent = speed == currentSpeed
+                        Button(
+                            onClick = { onSelectSpeed(speed) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(18.dp),
+                        ) {
+                            Text(
+                                text = if (isCurrent) {
+                                    "${formatSpeedLabel(speed)} (Current)"
+                                } else {
+                                    formatSpeedLabel(speed)
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+        },
+    )
 }
 
 @Composable
@@ -581,6 +657,7 @@ private fun BookPreview() {
                     progressLabel = "0m / 6h 44m",
                     progressPercent = 0,
                     coverImagePath = null,
+                    playbackSpeed = 1.2f,
                     hasChapters = true,
                     chapters = listOf(
                         BookChapter(
@@ -602,6 +679,7 @@ private fun BookPreview() {
                     currentPositionMs = 98_000L,
                     isPlaying = true,
                     durationMs = 24_240_000L,
+                    playbackSpeed = 1.2f,
                 ),
             ),
             onNavigateBack = {},
@@ -610,6 +688,11 @@ private fun BookPreview() {
             onSeekForward = {},
             onSeekTo = {},
             onSelectChapter = {},
+            onSetPlaybackSpeed = {},
         )
     }
 }
+
+private val SPEED_OPTIONS = listOf(0.8f, 1.0f, 1.2f, 1.5f, 1.8f, 2.0f)
+
+private fun formatSpeedLabel(speed: Float): String = String.format(Locale.US, "%.1fx", speed)

@@ -13,6 +13,7 @@ interface PlaybackController {
     fun seekBack()
     fun seekForward()
     fun seekTo(positionMs: Long)
+    fun setPlaybackSpeed(speed: Float)
 }
 
 data class PlaybackState(

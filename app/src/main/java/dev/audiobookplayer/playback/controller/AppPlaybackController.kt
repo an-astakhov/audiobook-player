@@ -36,4 +36,8 @@ class AppPlaybackController(
     override fun seekTo(positionMs: Long) {
         playbackRuntime.seekTo(positionMs)
     }
+
+    override fun setPlaybackSpeed(speed: Float) {
+        playbackRuntime.setPlaybackSpeed(speed)
+    }
 }

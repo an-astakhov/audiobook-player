@@ -7,7 +7,6 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
-import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import dev.audiobookplayer.AudiobookPlayerApplication
@@ -23,12 +22,7 @@ class AudiobookPlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         ensureNotificationChannel()
-        setMediaNotificationProvider(
-            DefaultMediaNotificationProvider.Builder(this)
-                .setChannelId(CHANNEL_ID)
-                .setNotificationId(NOTIFICATION_ID)
-                .build(),
-        )
+        setMediaNotificationProvider(AudiobookNotificationProvider(this))
         addSession(appContainer.playbackRuntime.mediaSession)
         sessionRegistered = true
         ServiceCompat.startForeground(
@@ -79,7 +73,7 @@ class AudiobookPlaybackService : MediaSessionService() {
         .build()
 
     private companion object {
-        const val CHANNEL_ID = "playback"
-        const val NOTIFICATION_ID = 1001
+        const val CHANNEL_ID = AudiobookNotificationProvider.CHANNEL_ID
+        const val NOTIFICATION_ID = AudiobookNotificationProvider.NOTIFICATION_ID
     }
 }

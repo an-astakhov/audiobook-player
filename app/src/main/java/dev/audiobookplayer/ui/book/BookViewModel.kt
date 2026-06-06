@@ -10,6 +10,7 @@ import dev.audiobookplayer.domain.model.BookChapter
 import dev.audiobookplayer.domain.model.BookDetail
 import dev.audiobookplayer.domain.model.DurationFormatter
 import dev.audiobookplayer.playback.controller.PlaybackState
+import java.util.Locale
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -89,6 +90,12 @@ data class BookUiState(
 
     val bookRemainingLabel: String
         get() = "${DurationFormatter.formatDuration(remainingBookMs)} left"
+
+    val effectivePlaybackSpeed: Float
+        get() = if (isActiveBook) playbackState.playbackSpeed else (book?.playbackSpeed ?: 1f)
+
+    val playbackSpeedLabel: String
+        get() = String.format(Locale.US, "%.1fx", effectivePlaybackSpeed)
 }
 
 class BookViewModel(
@@ -153,6 +160,12 @@ class BookViewModel(
                     startPositionMs = startPositionMs,
                 )
             }
+        }
+    }
+
+    fun onSetPlaybackSpeed(speed: Float) {
+        if (uiState.value.isActiveBook) {
+            appContainer.playbackController.setPlaybackSpeed(speed)
         }
     }
 

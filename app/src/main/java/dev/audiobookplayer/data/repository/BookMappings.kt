@@ -43,6 +43,7 @@ internal fun BookEntity.toBookDetail(chapters: List<ChapterEntity>): BookDetail 
         progressLabel = "${DurationFormatter.formatElapsed(currentPositionMs)} / ${DurationFormatter.formatDuration(durationMs)}",
         progressPercent = progressPercent,
         coverImagePath = coverImagePath,
+        playbackSpeed = playbackSpeed,
         hasChapters = chapters.isNotEmpty(),
         chapters = chapters.map(ChapterEntity::toBookChapter),
     )
@@ -56,6 +57,7 @@ internal fun BookEntity.toPlaybackSource(): PlaybackSource {
         author = author,
         resumePositionMs = currentPositionMs,
         durationMs = durationMs,
+        playbackSpeed = playbackSpeed,
     )
 }
 

@@ -30,4 +30,5 @@ data class PlaybackSource(
     val author: String?,
     val resumePositionMs: Long,
     val durationMs: Long,
+    val playbackSpeed: Float,
 )

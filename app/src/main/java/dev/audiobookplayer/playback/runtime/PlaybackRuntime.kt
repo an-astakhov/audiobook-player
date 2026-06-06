@@ -10,6 +10,7 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
@@ -33,16 +34,20 @@ class PlaybackRuntime(
     private val appScope: CoroutineScope,
 ) {
     private val appContext = context.applicationContext
-    private val exoPlayer = ExoPlayer.Builder(appContext).build().apply {
-        setAudioAttributes(
-            AudioAttributes.Builder()
-                .setUsage(C.USAGE_MEDIA)
-                .setContentType(C.AUDIO_CONTENT_TYPE_SPEECH)
-                .build(),
-            true,
-        )
-        setHandleAudioBecomingNoisy(true)
-    }
+    private val exoPlayer = ExoPlayer.Builder(appContext)
+        .setSeekBackIncrementMs(SEEK_INTERVAL_MS)
+        .setSeekForwardIncrementMs(SEEK_INTERVAL_MS)
+        .build()
+        .apply {
+            setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(C.USAGE_MEDIA)
+                    .setContentType(C.AUDIO_CONTENT_TYPE_SPEECH)
+                    .build(),
+                true,
+            )
+            setHandleAudioBecomingNoisy(true)
+        }
     private val mutableState = MutableStateFlow(PlaybackState())
     private var currentSource: PlaybackSource? = null
     private var progressJob: Job? = null
@@ -104,6 +109,7 @@ class PlaybackRuntime(
         } else if (startPositionMs != null) {
             exoPlayer.seekTo(requestedStartPositionMs)
         }
+        exoPlayer.setPlaybackParameters(PlaybackParameters(source.playbackSpeed))
 
         exoPlayer.playWhenReady = true
         exoPlayer.play()
@@ -140,6 +146,13 @@ class PlaybackRuntime(
     fun seekTo(positionMs: Long) {
         exoPlayer.seekTo(positionMs.coerceAtLeast(0L))
         updateState()
+    }
+
+    fun setPlaybackSpeed(speed: Float) {
+        val normalizedSpeed = speed.coerceIn(MIN_PLAYBACK_SPEED, MAX_PLAYBACK_SPEED)
+        exoPlayer.setPlaybackParameters(PlaybackParameters(normalizedSpeed))
+        updateState()
+        persistCurrentProgress()
     }
 
     fun persistCurrentProgress() {
@@ -233,5 +246,7 @@ class PlaybackRuntime(
         const val SEEK_INTERVAL_MS = 30_000L
         const val UI_UPDATE_INTERVAL_MS = 1_000L
         const val PROGRESS_PERSIST_INTERVAL_MS = 5_000L
+        const val MIN_PLAYBACK_SPEED = 0.5f
+        const val MAX_PLAYBACK_SPEED = 2.5f
     }
 }
