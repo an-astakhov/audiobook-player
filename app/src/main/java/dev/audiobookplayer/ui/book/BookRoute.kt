@@ -1,6 +1,7 @@
 package dev.audiobookplayer.ui.book
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,9 +20,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material.icons.outlined.Forward30
-import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Replay30
@@ -51,8 +50,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -165,21 +164,22 @@ fun BookScreen(
 
             else -> {
                 val book = uiState.book
-                LazyColumn(
+
+                Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(MaterialTheme.colorScheme.background)
                         .padding(innerPadding)
                         .statusBarsPadding()
                         .navigationBarsPadding(),
-                    contentPadding = PaddingValues(22.dp),
-                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                    verticalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    item {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Button(
                             onClick = onNavigateBack,
                             shape = RoundedCornerShape(999.dp),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
@@ -188,69 +188,68 @@ fun BookScreen(
                             Spacer(modifier = Modifier.size(8.dp))
                             Text("Library")
                         }
-                    }
 
-                    item {
                         Column(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 22.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(18.dp),
+                            verticalArrangement = Arrangement.Center,
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(width = 212.dp, height = 300.dp)
-                                    .clip(RoundedCornerShape(26.dp)),
-                            ) {
-                                BookCoverArtwork(
-                                    title = book.title,
-                                    coverImagePath = book.coverImagePath,
-                                    modifier = Modifier.fillMaxSize(),
-                                )
-                            }
-
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
-                                Text(
-                                    text = book.title,
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    textAlign = TextAlign.Center,
-                                )
-                                if (!book.author.isNullOrBlank()) {
-                                    Text(
-                                        text = book.author,
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                Box(
+                                    modifier = Modifier
+                                        .size(width = 172.dp, height = 244.dp)
+                                        .clip(RoundedCornerShape(24.dp)),
+                                ) {
+                                    BookCoverArtwork(
+                                        title = book.title,
+                                        coverImagePath = book.coverImagePath,
+                                        modifier = Modifier.fillMaxSize(),
                                     )
+                                }
+
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    Text(
+                                        text = book.title,
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        textAlign = TextAlign.Center,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    if (!book.author.isNullOrBlank()) {
+                                        Text(
+                                            text = book.author,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
 
-                    item {
-                        PlayerPanel(
-                            uiState = uiState,
-                            onPlayPause = onPlayPause,
-                            onSeekBack = onSeekBack,
-                            onSeekForward = onSeekForward,
-                            onSeekTo = onSeekTo,
-                            onOpenSpeedDialog = { isSpeedDialogOpen = true },
-                        )
-                    }
-
-                    item {
-                        ChapterLauncherCard(
-                            displayName = book.displayName,
-                            currentChapterTitle = uiState.currentChapter?.title,
-                            chapterCount = book.chapters.size,
-                            hasChapters = book.hasChapters,
-                            onOpenChapters = { isChapterDialogOpen = true },
-                            isRemoving = uiState.isDeleting,
-                            onRemoveBook = { isDeleteDialogOpen = true },
-                        )
-                    }
+                    PlayerPanel(
+                        uiState = uiState,
+                        onPlayPause = onPlayPause,
+                        onSeekBack = onSeekBack,
+                        onSeekForward = onSeekForward,
+                        onSeekTo = onSeekTo,
+                        onOpenSpeedDialog = { isSpeedDialogOpen = true },
+                        onOpenChapters = { isChapterDialogOpen = true },
+                        onRemoveBook = { isDeleteDialogOpen = true },
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
+                    )
                 }
 
                 if (isChapterDialogOpen && book.chapters.isNotEmpty()) {
@@ -301,6 +300,9 @@ private fun PlayerPanel(
     onSeekForward: () -> Unit,
     onSeekTo: (Long) -> Unit,
     onOpenSpeedDialog: () -> Unit,
+    onOpenChapters: () -> Unit,
+    onRemoveBook: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val sliderRangeMs = uiState.currentChapterDurationMs.coerceAtLeast(1L)
     var sliderValue by remember(
@@ -317,43 +319,23 @@ private fun PlayerPanel(
     }
 
     Card(
+        modifier = modifier,
         shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface,
         ),
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text(
-                text = "Playback",
-                style = MaterialTheme.typography.titleMedium,
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                SnapshotMetric(
-                    label = "Progress",
-                    value = "${uiState.progressPercent}%",
-                )
-                SnapshotMetric(
-                    label = "Duration",
-                    value = uiState.book?.durationLabel.orEmpty(),
-                )
-                SnapshotMetric(
-                    label = "Position",
-                    value = uiState.positionLabel,
-                )
-            }
-
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     text = uiState.currentChapter?.title ?: "Current chapter",
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
 
                 Row(
@@ -362,12 +344,12 @@ private fun PlayerPanel(
                 ) {
                     Text(
                         text = uiState.chapterElapsedLabel,
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
                         text = uiState.chapterRemainingLabel,
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -399,7 +381,7 @@ private fun PlayerPanel(
                 FilledTonalIconButton(
                     onClick = onSeekBack,
                     enabled = uiState.isActiveBook,
-                    modifier = Modifier.size(58.dp),
+                    modifier = Modifier.size(60.dp),
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Replay30,
@@ -409,7 +391,7 @@ private fun PlayerPanel(
 
                 FilledIconButton(
                     onClick = onPlayPause,
-                    modifier = Modifier.size(74.dp),
+                    modifier = Modifier.size(78.dp),
                 ) {
                     Icon(
                         imageVector = if (uiState.isPlaying) {
@@ -424,7 +406,7 @@ private fun PlayerPanel(
                 FilledTonalIconButton(
                     onClick = onSeekForward,
                     enabled = uiState.isActiveBook,
-                    modifier = Modifier.size(58.dp),
+                    modifier = Modifier.size(60.dp),
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Forward30,
@@ -433,23 +415,36 @@ private fun PlayerPanel(
                 }
             }
 
-            Button(
-                onClick = onOpenSpeedDialog,
-                enabled = uiState.isActiveBook,
-                shape = RoundedCornerShape(999.dp),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("Speed ${uiState.playbackSpeedLabel}")
+                Button(
+                    onClick = onOpenSpeedDialog,
+                    enabled = uiState.isActiveBook,
+                    shape = RoundedCornerShape(999.dp),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Speed ${uiState.playbackSpeedLabel}")
+                }
+
+                Button(
+                    onClick = onOpenChapters,
+                    enabled = uiState.book?.hasChapters == true,
+                    shape = RoundedCornerShape(999.dp),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Chapters")
+                }
             }
 
-            Text(
-                text = if (uiState.isActiveBook) {
-                    uiState.progressLabel
-                } else {
-                    "Tap play to start this imported audiobook. Once playback begins, chapter scrubbing and seek actions become available."
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            TextButton(
+                onClick = onRemoveBook,
+                enabled = !uiState.isDeleting,
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            ) {
+                Text(if (uiState.isDeleting) "Removing..." else "Remove from library")
+            }
         }
     }
 }
@@ -500,102 +495,6 @@ private fun SpeedDialog(
             }
         },
     )
-}
-
-@Composable
-private fun SnapshotMetric(
-    label: String,
-    value: String,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
-    }
-}
-
-@Composable
-private fun ChapterLauncherCard(
-    displayName: String,
-    currentChapterTitle: String?,
-    chapterCount: Int,
-    hasChapters: Boolean,
-    onOpenChapters: () -> Unit,
-    isRemoving: Boolean,
-    onRemoveBook: () -> Unit,
-) {
-    Card(
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-        ),
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Bookmarks,
-                    contentDescription = null,
-                )
-                Text(
-                    text = "Chapters",
-                    style = MaterialTheme.typography.titleMedium,
-                )
-            }
-
-            if (!hasChapters) {
-                Text(
-                    text = "Imported file: $displayName",
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-                Text(
-                    text = "No embedded chapter markers were found in this M4B. Playback still works normally, but there is no chapter list to jump through for this file.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                Text(
-                    text = currentChapterTitle ?: displayName,
-                    style = MaterialTheme.typography.titleLarge,
-                )
-                Text(
-                    text = "$chapterCount chapters available in this book.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Button(
-                    onClick = onOpenChapters,
-                    shape = RoundedCornerShape(999.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Bookmarks,
-                        contentDescription = null,
-                    )
-                    Spacer(modifier = Modifier.size(8.dp))
-                    Text("Chapters")
-                }
-            }
-
-            TextButton(
-                onClick = onRemoveBook,
-                enabled = !isRemoving,
-            ) {
-                Text(if (isRemoving) "Removing..." else "Remove from library")
-            }
-        }
-    }
 }
 
 @Composable
@@ -690,8 +589,9 @@ private fun ChapterRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
             .background(containerColor)
+            .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.Start,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(
@@ -709,14 +609,12 @@ private fun ChapterRow(
                 color = contentColor.copy(alpha = 0.78f),
             )
         }
-
-        TextButton(onClick = onClick) {
-            Icon(
-                imageVector = Icons.Outlined.PlayCircle,
-                contentDescription = null,
+        if (isCurrentChapter) {
+            Text(
+                text = "Current",
+                style = MaterialTheme.typography.labelLarge,
+                color = contentColor,
             )
-            Spacer(modifier = Modifier.size(6.dp))
-            Text(if (isCurrentChapter) "Replay" else "Jump")
         }
     }
 }
@@ -730,7 +628,7 @@ private fun BookPreview() {
                 isLoading = false,
                 book = BookDetail(
                     id = "preview",
-                    title = "World War Z",
+                    title = "World War Z: The Complete Edition With A Very Long Title",
                     author = "Max Brooks",
                     displayName = "World War Z.m4b",
                     durationMs = 24_240_000L,
@@ -745,7 +643,7 @@ private fun BookPreview() {
                     chapters = listOf(
                         BookChapter(
                             index = 0,
-                            title = "00: Intro",
+                            title = "00: Intro and setup for the first oral history segment",
                             startPositionMs = 0L,
                             startPositionLabel = "00:00",
                         ),
