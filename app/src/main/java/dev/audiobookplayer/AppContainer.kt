@@ -28,7 +28,9 @@ class AppContainer(
         .build()
 
     val libraryRepository: LibraryRepository = RoomLibraryRepository(
+        database = database,
         bookDao = database.bookDao(),
+        chapterDao = database.chapterDao(),
         metadataExtractor = M4bMetadataExtractor(appContext),
         coverArtStore = CoverArtStore(appContext),
     )

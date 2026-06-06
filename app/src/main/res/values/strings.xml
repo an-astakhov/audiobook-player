@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Audiobook Player</string>
+    <string name="playback_notification_channel_name">Playback</string>
+    <string name="playback_notification_channel_description">Audiobook playback controls and progress</string>
+    <string name="playback_notification_title">Audiobook playback</string>
+    <string name="playback_notification_preparing">Preparing player</string>
 </resources>
-

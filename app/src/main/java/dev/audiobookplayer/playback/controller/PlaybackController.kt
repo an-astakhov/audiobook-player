@@ -5,7 +5,10 @@ import kotlinx.coroutines.flow.StateFlow
 interface PlaybackController {
     val state: StateFlow<PlaybackState>
 
-    suspend fun playBook(bookId: String)
+    suspend fun playBook(
+        bookId: String,
+        startPositionMs: Long? = null,
+    )
     fun togglePlayPause()
     fun seekBack()
     fun seekForward()

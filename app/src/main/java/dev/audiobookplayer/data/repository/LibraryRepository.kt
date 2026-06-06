@@ -28,6 +28,6 @@ data class PlaybackSource(
     val contentUri: String,
     val title: String,
     val author: String?,
-    val currentPositionMs: Long,
+    val resumePositionMs: Long,
     val durationMs: Long,
 )

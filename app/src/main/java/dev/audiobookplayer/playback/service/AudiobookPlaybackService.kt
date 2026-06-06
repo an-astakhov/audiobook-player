@@ -7,12 +7,15 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import dev.audiobookplayer.AudiobookPlayerApplication
 import dev.audiobookplayer.R
 
 class AudiobookPlaybackService : MediaSessionService() {
+    private var sessionRegistered = false
+
     private val appContainer by lazy {
         (application as AudiobookPlayerApplication).appContainer
     }
@@ -20,6 +23,14 @@ class AudiobookPlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         ensureNotificationChannel()
+        setMediaNotificationProvider(
+            DefaultMediaNotificationProvider.Builder(this)
+                .setChannelId(CHANNEL_ID)
+                .setNotificationId(NOTIFICATION_ID)
+                .build(),
+        )
+        addSession(appContainer.playbackRuntime.mediaSession)
+        sessionRegistered = true
         ServiceCompat.startForeground(
             this,
             NOTIFICATION_ID,
@@ -39,6 +50,10 @@ class AudiobookPlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        if (sessionRegistered) {
+            removeSession(appContainer.playbackRuntime.mediaSession)
+            sessionRegistered = false
+        }
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         super.onDestroy()
     }
@@ -47,17 +62,17 @@ class AudiobookPlaybackService : MediaSessionService() {
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "Playback",
+            getString(R.string.playback_notification_channel_name),
             NotificationManager.IMPORTANCE_LOW,
         ).apply {
-            description = "Audiobook playback"
+            description = getString(R.string.playback_notification_channel_description)
         }
         notificationManager.createNotificationChannel(channel)
     }
 
     private fun buildNotification() = NotificationCompat.Builder(this, CHANNEL_ID)
-        .setContentTitle("Audiobook playback")
-        .setContentText("Preparing player")
+        .setContentTitle(getString(R.string.playback_notification_title))
+        .setContentText(getString(R.string.playback_notification_preparing))
         .setSmallIcon(R.mipmap.ic_launcher)
         .setOngoing(true)
         .setCategory(NotificationCompat.CATEGORY_TRANSPORT)

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.audiobookplayer.AppContainer
+import dev.audiobookplayer.domain.model.BookChapter
 import dev.audiobookplayer.domain.model.BookDetail
 import dev.audiobookplayer.domain.model.DurationFormatter
 import dev.audiobookplayer.playback.controller.PlaybackState
@@ -35,6 +36,39 @@ data class BookUiState(
             else -> book?.durationMs ?: 0L
         }
 
+    val currentChapter: BookChapter?
+        get() {
+            val chapters = book?.chapters.orEmpty()
+            if (chapters.isEmpty()) return null
+            return chapters.lastOrNull { it.startPositionMs <= effectivePositionMs } ?: chapters.first()
+        }
+
+    val currentChapterIndex: Int
+        get() = currentChapter?.index ?: 0
+
+    val currentChapterStartMs: Long
+        get() = currentChapter?.startPositionMs ?: 0L
+
+    val currentChapterEndMs: Long
+        get() {
+            val chapters = book?.chapters.orEmpty()
+            val nextChapter = chapters.getOrNull(currentChapterIndex + 1)
+            return nextChapter?.startPositionMs ?: effectiveDurationMs
+        }
+
+    val currentChapterDurationMs: Long
+        get() = (currentChapterEndMs - currentChapterStartMs).coerceAtLeast(1L)
+
+    val currentChapterPositionMs: Long
+        get() = (effectivePositionMs - currentChapterStartMs)
+            .coerceIn(0L, currentChapterDurationMs)
+
+    val currentChapterRemainingMs: Long
+        get() = (currentChapterEndMs - effectivePositionMs).coerceAtLeast(0L)
+
+    val remainingBookMs: Long
+        get() = (effectiveDurationMs - effectivePositionMs).coerceAtLeast(0L)
+
     val progressPercent: Int
         get() = DurationFormatter.progressPercent(
             positionMs = effectivePositionMs,
@@ -46,6 +80,15 @@ data class BookUiState(
 
     val progressLabel: String
         get() = "${DurationFormatter.formatElapsed(effectivePositionMs)} / ${DurationFormatter.formatDuration(effectiveDurationMs)}"
+
+    val chapterElapsedLabel: String
+        get() = DurationFormatter.formatPlaybackPosition(currentChapterPositionMs)
+
+    val chapterRemainingLabel: String
+        get() = "-${DurationFormatter.formatPlaybackPosition(currentChapterRemainingMs)}"
+
+    val bookRemainingLabel: String
+        get() = "${DurationFormatter.formatDuration(remainingBookMs)} left"
 }
 
 class BookViewModel(
@@ -95,6 +138,21 @@ class BookViewModel(
     fun onSeekTo(positionMs: Long) {
         if (uiState.value.isActiveBook) {
             appContainer.playbackController.seekTo(positionMs)
+        }
+    }
+
+    fun onSelectChapter(startPositionMs: Long) {
+        if (uiState.value.book == null) return
+
+        if (uiState.value.isActiveBook) {
+            appContainer.playbackController.seekTo(startPositionMs)
+        } else {
+            viewModelScope.launch {
+                appContainer.playbackController.playBook(
+                    bookId = bookId,
+                    startPositionMs = startPositionMs,
+                )
+            }
         }
     }
 

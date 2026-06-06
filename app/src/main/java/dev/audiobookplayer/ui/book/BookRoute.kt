@@ -9,19 +9,23 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material.icons.outlined.Forward30
-import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Replay30
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -33,10 +37,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,8 +55,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.audiobookplayer.AppContainer
+import dev.audiobookplayer.domain.model.BookChapter
 import dev.audiobookplayer.domain.model.BookDetail
-import dev.audiobookplayer.domain.model.DurationFormatter
 import dev.audiobookplayer.playback.controller.PlaybackState
 import dev.audiobookplayer.ui.components.BookCoverArtwork
 import dev.audiobookplayer.ui.theme.AudiobookPlayerTheme
@@ -76,6 +83,7 @@ fun BookRoute(
         onSeekBack = viewModel::onSeekBack,
         onSeekForward = viewModel::onSeekForward,
         onSeekTo = viewModel::onSeekTo,
+        onSelectChapter = viewModel::onSelectChapter,
     )
 }
 
@@ -87,7 +95,12 @@ fun BookScreen(
     onSeekBack: () -> Unit,
     onSeekForward: () -> Unit,
     onSeekTo: (Long) -> Unit,
+    onSelectChapter: (Long) -> Unit,
 ) {
+    var isChapterDialogOpen by rememberSaveable(uiState.book?.id) {
+        mutableStateOf(false)
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
     ) { innerPadding ->
@@ -195,11 +208,26 @@ fun BookScreen(
                     }
 
                     item {
-                        NextStageCard(
+                        ChapterLauncherCard(
                             displayName = book.displayName,
+                            currentChapterTitle = uiState.currentChapter?.title,
+                            chapterCount = book.chapters.size,
                             hasChapters = book.hasChapters,
+                            onOpenChapters = { isChapterDialogOpen = true },
                         )
                     }
+                }
+
+                if (isChapterDialogOpen && book.chapters.isNotEmpty()) {
+                    ChapterDialog(
+                        chapters = book.chapters,
+                        currentChapterIndex = uiState.currentChapter?.index,
+                        onDismiss = { isChapterDialogOpen = false },
+                        onSelectChapter = { startPositionMs ->
+                            isChapterDialogOpen = false
+                            onSelectChapter(startPositionMs)
+                        },
+                    )
                 }
             }
         }
@@ -214,12 +242,16 @@ private fun PlayerPanel(
     onSeekForward: () -> Unit,
     onSeekTo: (Long) -> Unit,
 ) {
-    val durationMs = uiState.effectiveDurationMs.coerceAtLeast(1L)
-    var sliderValue by remember(uiState.book?.id, uiState.isActiveBook) {
-        mutableFloatStateOf(uiState.effectivePositionMs.toFloat())
+    val sliderRangeMs = uiState.currentChapterDurationMs.coerceAtLeast(1L)
+    var sliderValue by remember(
+        uiState.book?.id,
+        uiState.isActiveBook,
+        uiState.currentChapter?.index,
+    ) {
+        mutableFloatStateOf(uiState.currentChapterPositionMs.toFloat())
     }
 
-    val effectivePosition = uiState.effectivePositionMs.toFloat()
+    val effectivePosition = uiState.currentChapterPositionMs.toFloat()
     if (abs(sliderValue - effectivePosition) > 3_000f) {
         sliderValue = effectivePosition
     }
@@ -258,30 +290,44 @@ private fun PlayerPanel(
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = uiState.currentChapter?.title ?: "Current chapter",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(
-                        text = uiState.positionLabel,
+                        text = uiState.chapterElapsedLabel,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
-                        text = DurationFormatter.formatPlaybackPosition(durationMs),
+                        text = uiState.chapterRemainingLabel,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
 
                 Slider(
-                    value = sliderValue.coerceIn(0f, durationMs.toFloat()),
+                    value = sliderValue.coerceIn(0f, sliderRangeMs.toFloat()),
                     onValueChange = { sliderValue = it },
-                    valueRange = 0f..durationMs.toFloat(),
+                    valueRange = 0f..sliderRangeMs.toFloat(),
                     onValueChangeFinished = {
-                        onSeekTo(sliderValue.toLong())
+                        onSeekTo(uiState.currentChapterStartMs + sliderValue.toLong())
                     },
                     enabled = uiState.isActiveBook,
+                )
+
+                Text(
+                    text = uiState.bookRemainingLabel,
+                    modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
@@ -331,7 +377,7 @@ private fun PlayerPanel(
                 text = if (uiState.isActiveBook) {
                     uiState.progressLabel
                 } else {
-                    "Tap play to start this imported audiobook. Once playback begins, background controls and seek actions become available."
+                    "Tap play to start this imported audiobook. Once playback begins, chapter scrubbing and seek actions become available."
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -360,9 +406,12 @@ private fun SnapshotMetric(
 }
 
 @Composable
-private fun NextStageCard(
+private fun ChapterLauncherCard(
     displayName: String,
+    currentChapterTitle: String?,
+    chapterCount: Int,
     hasChapters: Boolean,
+    onOpenChapters: () -> Unit,
 ) {
     Card(
         shape = RoundedCornerShape(28.dp),
@@ -379,28 +428,136 @@ private fun NextStageCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.Info,
+                    imageVector = Icons.Outlined.Bookmarks,
                     contentDescription = null,
                 )
                 Text(
-                    text = "Current scope",
+                    text = "Chapters",
                     style = MaterialTheme.typography.titleMedium,
                 )
             }
 
+            if (!hasChapters) {
+                Text(
+                    text = "Imported file: $displayName",
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    text = "No embedded chapter markers were found in this M4B. Playback still works normally, but there is no chapter list to jump through for this file.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Text(
+                    text = currentChapterTitle ?: displayName,
+                    style = MaterialTheme.typography.titleLarge,
+                )
+                Text(
+                    text = "$chapterCount chapters available in this book.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Button(
+                    onClick = onOpenChapters,
+                    shape = RoundedCornerShape(999.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Bookmarks,
+                        contentDescription = null,
+                    )
+                    Spacer(modifier = Modifier.size(8.dp))
+                    Text("Chapters")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChapterDialog(
+    chapters: List<BookChapter>,
+    currentChapterIndex: Int?,
+    onDismiss: () -> Unit,
+    onSelectChapter: (Long) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        },
+        title = {
+            Text("Chapters")
+        },
+        text = {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(chapters) { chapter ->
+                    ChapterRow(
+                        chapter = chapter,
+                        isCurrentChapter = chapter.index == currentChapterIndex,
+                        onClick = { onSelectChapter(chapter.startPositionMs) },
+                    )
+                }
+            }
+        },
+    )
+}
+
+@Composable
+private fun ChapterRow(
+    chapter: BookChapter,
+    isCurrentChapter: Boolean,
+    onClick: () -> Unit,
+) {
+    val containerColor = if (isCurrentChapter) {
+        MaterialTheme.colorScheme.secondaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+    }
+    val contentColor = if (isCurrentChapter) {
+        MaterialTheme.colorScheme.onSecondaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(containerColor)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
             Text(
-                text = "Imported file: $displayName",
-                style = MaterialTheme.typography.bodyLarge,
+                text = chapter.title,
+                style = MaterialTheme.typography.titleSmall,
+                color = contentColor,
             )
             Text(
-                text = if (hasChapters) {
-                    "The file appears chapter-capable, but chapter extraction and next or previous chapter controls are still the next implementation step."
-                } else {
-                    "This build now covers import, persistent library state, and playback foundation. Chapter parsing and navigation still come next."
-                },
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                text = "Starts at ${chapter.startPositionLabel}",
+                style = MaterialTheme.typography.bodySmall,
+                color = contentColor.copy(alpha = 0.78f),
             )
+        }
+
+        TextButton(onClick = onClick) {
+            Icon(
+                imageVector = Icons.Outlined.PlayCircle,
+                contentDescription = null,
+            )
+            Spacer(modifier = Modifier.size(6.dp))
+            Text(if (isCurrentChapter) "Replay" else "Jump")
         }
     }
 }
@@ -424,9 +581,26 @@ private fun BookPreview() {
                     progressLabel = "0m / 6h 44m",
                     progressPercent = 0,
                     coverImagePath = null,
-                    hasChapters = false,
+                    hasChapters = true,
+                    chapters = listOf(
+                        BookChapter(
+                            index = 0,
+                            title = "00: Intro",
+                            startPositionMs = 0L,
+                            startPositionLabel = "00:00",
+                        ),
+                        BookChapter(
+                            index = 1,
+                            title = "01: Introduction",
+                            startPositionMs = 87_000L,
+                            startPositionLabel = "01:27",
+                        ),
+                    ),
                 ),
                 playbackState = PlaybackState(
+                    activeBookId = "preview",
+                    currentPositionMs = 98_000L,
+                    isPlaying = true,
                     durationMs = 24_240_000L,
                 ),
             ),
@@ -435,6 +609,7 @@ private fun BookPreview() {
             onSeekBack = {},
             onSeekForward = {},
             onSeekTo = {},
+            onSelectChapter = {},
         )
     }
 }

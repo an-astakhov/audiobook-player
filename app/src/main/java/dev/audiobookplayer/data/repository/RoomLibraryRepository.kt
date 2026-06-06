@@ -1,8 +1,12 @@
 package dev.audiobookplayer.data.repository
 
 import android.net.Uri
+import androidx.room.withTransaction
+import dev.audiobookplayer.data.db.AppDatabase
 import dev.audiobookplayer.data.db.BookDao
 import dev.audiobookplayer.data.db.BookEntity
+import dev.audiobookplayer.data.db.ChapterDao
+import dev.audiobookplayer.data.db.ChapterEntity
 import dev.audiobookplayer.data.metadata.M4bMetadataExtractor
 import dev.audiobookplayer.domain.model.BookDetail
 import dev.audiobookplayer.domain.model.BookSummary
@@ -10,11 +14,14 @@ import dev.audiobookplayer.platform.storage.CoverArtStore
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
 class RoomLibraryRepository(
+    private val database: AppDatabase,
     private val bookDao: BookDao,
+    private val chapterDao: ChapterDao,
     private val metadataExtractor: M4bMetadataExtractor,
     private val coverArtStore: CoverArtStore,
 ) : LibraryRepository {
@@ -23,7 +30,12 @@ class RoomLibraryRepository(
     }
 
     override fun observeBook(bookId: String): Flow<BookDetail?> {
-        return bookDao.observeById(bookId).map { book -> book?.toBookDetail() }
+        return combine(
+            bookDao.observeById(bookId),
+            chapterDao.observeByBookId(bookId),
+        ) { book, chapters ->
+            book?.toBookDetail(chapters)
+        }
     }
 
     override suspend fun importBook(uri: Uri): ImportResult = withContext(Dispatchers.IO) {
@@ -50,10 +62,24 @@ class RoomLibraryRepository(
             lastPlayedAtEpochMs = existing?.lastPlayedAtEpochMs ?: now,
             currentPositionMs = existing?.currentPositionMs ?: 0L,
             playbackSpeed = existing?.playbackSpeed ?: 1f,
-            hasChapters = existing?.hasChapters ?: false,
+            hasChapters = metadata.chapters.isNotEmpty(),
         )
+        val chapterEntities = metadata.chapters.mapIndexed { index, chapter ->
+            ChapterEntity(
+                bookId = bookId,
+                chapterIndex = index,
+                title = chapter.title,
+                startPositionMs = chapter.startPositionMs,
+            )
+        }
 
-        bookDao.upsert(entity)
+        database.withTransaction {
+            bookDao.upsert(entity)
+            chapterDao.deleteByBookId(bookId)
+            if (chapterEntities.isNotEmpty()) {
+                chapterDao.insertAll(chapterEntities)
+            }
+        }
         ImportResult(
             bookId = bookId,
             wasUpdated = existing != null,

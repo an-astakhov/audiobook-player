@@ -13,4 +13,5 @@ data class BookDetail(
     val progressPercent: Int,
     val coverImagePath: String?,
     val hasChapters: Boolean,
+    val chapters: List<BookChapter>,
 )

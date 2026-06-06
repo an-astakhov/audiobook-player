@@ -1,5 +1,6 @@
 package dev.audiobookplayer.playback.runtime
 
+import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -12,6 +13,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
+import dev.audiobookplayer.MainActivity
 import dev.audiobookplayer.data.repository.LibraryRepository
 import dev.audiobookplayer.data.repository.PlaybackSource
 import dev.audiobookplayer.playback.controller.PlaybackState
@@ -47,7 +49,9 @@ class PlaybackRuntime(
 
     val state: StateFlow<PlaybackState> = mutableState.asStateFlow()
 
-    val mediaSession: MediaSession = MediaSession.Builder(appContext, exoPlayer).build()
+    val mediaSession: MediaSession = MediaSession.Builder(appContext, exoPlayer)
+        .setSessionActivity(buildSessionActivity())
+        .build()
 
     init {
         exoPlayer.addListener(
@@ -86,13 +90,19 @@ class PlaybackRuntime(
         exoPlayer.release()
     }
 
-    suspend fun playBook(source: PlaybackSource) {
+    suspend fun playBook(
+        source: PlaybackSource,
+        startPositionMs: Long? = null,
+    ) {
         currentSource = source
         ensureServiceRunning()
+        val requestedStartPositionMs = startPositionMs ?: source.resumePositionMs
 
         if (exoPlayer.currentMediaItem?.mediaId != source.bookId) {
-            exoPlayer.setMediaItem(source.toMediaItem(), source.currentPositionMs)
+            exoPlayer.setMediaItem(source.toMediaItem(), requestedStartPositionMs)
             exoPlayer.prepare()
+        } else if (startPositionMs != null) {
+            exoPlayer.seekTo(requestedStartPositionMs)
         }
 
         exoPlayer.playWhenReady = true
@@ -167,10 +177,15 @@ class PlaybackRuntime(
             if (progressJob?.isActive == true) return
 
             progressJob = appScope.launch {
+                var elapsedSincePersistMs = 0L
                 while (isActive && exoPlayer.isPlaying) {
                     updateState()
-                    delay(PROGRESS_PERSIST_INTERVAL_MS)
-                    persistCurrentProgress()
+                    delay(UI_UPDATE_INTERVAL_MS)
+                    elapsedSincePersistMs += UI_UPDATE_INTERVAL_MS
+                    if (elapsedSincePersistMs >= PROGRESS_PERSIST_INTERVAL_MS) {
+                        persistCurrentProgress()
+                        elapsedSincePersistMs = 0L
+                    }
                 }
             }
         } else {
@@ -189,6 +204,18 @@ class PlaybackRuntime(
         )
     }
 
+    private fun buildSessionActivity(): PendingIntent {
+        val intent = Intent(appContext, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        return PendingIntent.getActivity(
+            appContext,
+            0,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
     private fun PlaybackSource.toMediaItem(): MediaItem {
         return MediaItem.Builder()
             .setMediaId(bookId)
@@ -204,6 +231,7 @@ class PlaybackRuntime(
 
     private companion object {
         const val SEEK_INTERVAL_MS = 30_000L
+        const val UI_UPDATE_INTERVAL_MS = 1_000L
         const val PROGRESS_PERSIST_INTERVAL_MS = 5_000L
     }
 }

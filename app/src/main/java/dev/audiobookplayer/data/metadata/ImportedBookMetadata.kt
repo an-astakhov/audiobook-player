@@ -9,5 +9,5 @@ data class ImportedBookMetadata(
     val fileSizeBytes: Long?,
     val mimeType: String?,
     val embeddedArtwork: ByteArray?,
+    val chapters: List<ImportedChapterMetadata>,
 )
-

@@ -11,6 +11,8 @@ import kotlinx.coroutines.withContext
 class M4bMetadataExtractor(
     private val context: Context,
 ) {
+    private val chapterExtractor = M4bChapterExtractor(context.contentResolver)
+
     suspend fun extract(uri: Uri): ImportedBookMetadata = withContext(Dispatchers.IO) {
         val documentInfo = queryDocumentInfo(uri)
         validateExtension(documentInfo.displayName)
@@ -46,6 +48,7 @@ class M4bMetadataExtractor(
                 fileSizeBytes = documentInfo.fileSizeBytes,
                 mimeType = documentInfo.mimeType,
                 embeddedArtwork = retriever.embeddedPicture,
+                chapters = chapterExtractor.extract(uri),
             )
         } finally {
             retriever.release()

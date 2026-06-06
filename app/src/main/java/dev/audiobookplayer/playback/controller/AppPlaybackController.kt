@@ -10,9 +10,15 @@ class AppPlaybackController(
 ) : PlaybackController {
     override val state: StateFlow<PlaybackState> = playbackRuntime.state
 
-    override suspend fun playBook(bookId: String) {
+    override suspend fun playBook(
+        bookId: String,
+        startPositionMs: Long?,
+    ) {
         val playbackSource = libraryRepository.getPlaybackSource(bookId) ?: return
-        playbackRuntime.playBook(playbackSource)
+        playbackRuntime.playBook(
+            source = playbackSource,
+            startPositionMs = startPositionMs,
+        )
     }
 
     override fun togglePlayPause() {
@@ -31,4 +37,3 @@ class AppPlaybackController(
         playbackRuntime.seekTo(positionMs)
     }
 }
-
