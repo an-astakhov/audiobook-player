@@ -23,5 +23,11 @@ class CoverArtStore(
         outputFile.writeBytes(artworkBytes)
         outputFile.absolutePath
     }
-}
 
+    suspend fun delete(bookId: String) = withContext(Dispatchers.IO) {
+        val outputFile = File(File(context.filesDir, "covers"), "$bookId.art")
+        if (outputFile.exists()) {
+            outputFile.delete()
+        }
+    }
+}

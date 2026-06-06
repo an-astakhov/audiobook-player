@@ -78,10 +78,10 @@ fun LibraryRoute(
         }
     }
 
-    LaunchedEffect(uiState.value.importErrorMessage) {
-        val message = uiState.value.importErrorMessage ?: return@LaunchedEffect
+    LaunchedEffect(uiState.value.message) {
+        val message = uiState.value.message ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(message)
-        viewModel.clearImportError()
+        viewModel.clearMessage()
     }
 
     LibraryScreen(
@@ -404,4 +404,3 @@ private fun PopulatedLibraryPreview() {
         )
     }
 }
-

@@ -36,9 +36,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -86,6 +89,8 @@ fun BookRoute(
         onSeekTo = viewModel::onSeekTo,
         onSelectChapter = viewModel::onSelectChapter,
         onSetPlaybackSpeed = viewModel::onSetPlaybackSpeed,
+        onRemoveBook = viewModel::removeBook,
+        onClearMessage = viewModel::clearMessage,
     )
 }
 
@@ -99,6 +104,8 @@ fun BookScreen(
     onSeekTo: (Long) -> Unit,
     onSelectChapter: (Long) -> Unit,
     onSetPlaybackSpeed: (Float) -> Unit,
+    onRemoveBook: () -> Unit,
+    onClearMessage: () -> Unit,
 ) {
     var isChapterDialogOpen by rememberSaveable(uiState.book?.id) {
         mutableStateOf(false)
@@ -106,9 +113,28 @@ fun BookScreen(
     var isSpeedDialogOpen by rememberSaveable(uiState.book?.id) {
         mutableStateOf(false)
     }
+    var isDeleteDialogOpen by rememberSaveable(uiState.book?.id) {
+        mutableStateOf(false)
+    }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(uiState.message) {
+        val message = uiState.message ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        onClearMessage()
+    }
+
+    LaunchedEffect(uiState.wasDeleted) {
+        if (uiState.wasDeleted) {
+            onNavigateBack()
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = {
+            SnackbarHost(hostState = snackbarHostState)
+        },
     ) { innerPadding ->
         when {
             uiState.isLoading -> {
@@ -221,6 +247,8 @@ fun BookScreen(
                             chapterCount = book.chapters.size,
                             hasChapters = book.hasChapters,
                             onOpenChapters = { isChapterDialogOpen = true },
+                            isRemoving = uiState.isDeleting,
+                            onRemoveBook = { isDeleteDialogOpen = true },
                         )
                     }
                 }
@@ -245,6 +273,18 @@ fun BookScreen(
                         onSelectSpeed = { speed ->
                             isSpeedDialogOpen = false
                             onSetPlaybackSpeed(speed)
+                        },
+                    )
+                }
+
+                if (isDeleteDialogOpen) {
+                    DeleteBookDialog(
+                        title = book.title,
+                        isDeleting = uiState.isDeleting,
+                        onDismiss = { isDeleteDialogOpen = false },
+                        onConfirm = {
+                            isDeleteDialogOpen = false
+                            onRemoveBook()
                         },
                     )
                 }
@@ -488,6 +528,8 @@ private fun ChapterLauncherCard(
     chapterCount: Int,
     hasChapters: Boolean,
     onOpenChapters: () -> Unit,
+    isRemoving: Boolean,
+    onRemoveBook: () -> Unit,
 ) {
     Card(
         shape = RoundedCornerShape(28.dp),
@@ -545,8 +587,49 @@ private fun ChapterLauncherCard(
                     Text("Chapters")
                 }
             }
+
+            TextButton(
+                onClick = onRemoveBook,
+                enabled = !isRemoving,
+            ) {
+                Text(if (isRemoving) "Removing..." else "Remove from library")
+            }
         }
     }
+}
+
+@Composable
+private fun DeleteBookDialog(
+    title: String,
+    isDeleting: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                enabled = !isDeleting,
+            ) {
+                Text(if (isDeleting) "Removing..." else "Remove")
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isDeleting,
+            ) {
+                Text("Cancel")
+            }
+        },
+        title = {
+            Text("Remove audiobook")
+        },
+        text = {
+            Text("Remove \"$title\" from the library? Your saved progress for this import will also be removed.")
+        },
+    )
 }
 
 @Composable
@@ -689,6 +772,8 @@ private fun BookPreview() {
             onSeekTo = {},
             onSelectChapter = {},
             onSetPlaybackSpeed = {},
+            onRemoveBook = {},
+            onClearMessage = {},
         )
     }
 }

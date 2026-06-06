@@ -40,4 +40,8 @@ class AppPlaybackController(
     override fun setPlaybackSpeed(speed: Float) {
         playbackRuntime.setPlaybackSpeed(speed)
     }
+
+    override suspend fun stopForRemovedBook(bookId: String) {
+        playbackRuntime.stopForRemovedBook(bookId)
+    }
 }

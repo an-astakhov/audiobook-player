@@ -10,6 +10,7 @@ interface LibraryRepository {
     fun observeBook(bookId: String): Flow<BookDetail?>
     suspend fun importBook(uri: Uri): ImportResult
     suspend fun getPlaybackSource(bookId: String): PlaybackSource?
+    suspend fun deleteBook(bookId: String)
     suspend fun updatePlaybackState(
         bookId: String,
         positionMs: Long,
@@ -31,4 +32,12 @@ data class PlaybackSource(
     val resumePositionMs: Long,
     val durationMs: Long,
     val playbackSpeed: Float,
+    val chapters: List<PlaybackChapter>,
+)
+
+data class PlaybackChapter(
+    val index: Int,
+    val title: String,
+    val startPositionMs: Long,
+    val endPositionMs: Long,
 )

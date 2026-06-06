@@ -87,7 +87,18 @@ class RoomLibraryRepository(
     }
 
     override suspend fun getPlaybackSource(bookId: String): PlaybackSource? = withContext(Dispatchers.IO) {
-        bookDao.getById(bookId)?.toPlaybackSource()
+        val book = bookDao.getById(bookId) ?: return@withContext null
+        book.toPlaybackSource().copy(
+            chapters = chapterDao.getByBookId(bookId).toPlaybackChapters(book.durationMs),
+        )
+    }
+
+    override suspend fun deleteBook(bookId: String) = withContext(Dispatchers.IO) {
+        database.withTransaction {
+            chapterDao.deleteByBookId(bookId)
+            bookDao.deleteById(bookId)
+        }
+        coverArtStore.delete(bookId)
     }
 
     override suspend fun updatePlaybackState(

@@ -58,7 +58,19 @@ internal fun BookEntity.toPlaybackSource(): PlaybackSource {
         resumePositionMs = currentPositionMs,
         durationMs = durationMs,
         playbackSpeed = playbackSpeed,
+        chapters = emptyList(),
     )
+}
+
+internal fun List<ChapterEntity>.toPlaybackChapters(bookDurationMs: Long): List<PlaybackChapter> {
+    return mapIndexed { index, chapter ->
+        PlaybackChapter(
+            index = chapter.chapterIndex,
+            title = chapter.title,
+            startPositionMs = chapter.startPositionMs,
+            endPositionMs = getOrNull(index + 1)?.startPositionMs ?: bookDurationMs,
+        )
+    }
 }
 
 private fun ChapterEntity.toBookChapter(): BookChapter {

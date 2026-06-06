@@ -14,6 +14,7 @@ interface PlaybackController {
     fun seekForward()
     fun seekTo(positionMs: Long)
     fun setPlaybackSpeed(speed: Float)
+    suspend fun stopForRemovedBook(bookId: String)
 }
 
 data class PlaybackState(

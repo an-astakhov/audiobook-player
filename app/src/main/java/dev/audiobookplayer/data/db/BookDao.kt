@@ -24,6 +24,9 @@ interface BookDao {
     @Query("SELECT * FROM books WHERE contentUri = :contentUri LIMIT 1")
     suspend fun getByContentUri(contentUri: String): BookEntity?
 
+    @Query("DELETE FROM books WHERE id = :bookId")
+    suspend fun deleteById(bookId: String)
+
     @Query(
         """
         UPDATE books

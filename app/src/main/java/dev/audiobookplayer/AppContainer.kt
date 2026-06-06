@@ -9,6 +9,7 @@ import dev.audiobookplayer.data.repository.RoomLibraryRepository
 import dev.audiobookplayer.playback.controller.AppPlaybackController
 import dev.audiobookplayer.playback.controller.PlaybackController
 import dev.audiobookplayer.playback.runtime.PlaybackRuntime
+import dev.audiobookplayer.playback.session.PlaybackSessionStore
 import dev.audiobookplayer.platform.storage.CoverArtStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -38,6 +39,7 @@ class AppContainer(
         context = appContext,
         libraryRepository = libraryRepository,
         appScope = applicationScope,
+        sessionStore = PlaybackSessionStore(appContext),
     )
     val playbackController: PlaybackController = AppPlaybackController(
         libraryRepository = libraryRepository,

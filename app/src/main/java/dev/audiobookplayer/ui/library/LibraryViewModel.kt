@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
 data class LibraryUiState(
     val isLoading: Boolean = true,
     val isImporting: Boolean = false,
-    val importErrorMessage: String? = null,
+    val message: String? = null,
     val books: List<BookSummary> = emptyList(),
 )
 
@@ -27,16 +27,16 @@ class LibraryViewModel(
     private val appContainer: AppContainer,
 ) : ViewModel() {
     private val isImporting = MutableStateFlow(false)
-    private val importErrorMessage = MutableStateFlow<String?>(null)
+    private val message = MutableStateFlow<String?>(null)
 
     val uiState: StateFlow<LibraryUiState> = appContainer.libraryRepository
         .observeLibrary()
         .combine(isImporting) { books, importing -> books to importing }
-        .combine(importErrorMessage) { (books, importing), errorMessage ->
+        .combine(message) { (books, importing), currentMessage ->
             LibraryUiState(
                 isLoading = false,
                 isImporting = importing,
-                importErrorMessage = errorMessage,
+                message = currentMessage,
                 books = books,
             )
         }
@@ -51,20 +51,31 @@ class LibraryViewModel(
 
         viewModelScope.launch {
             isImporting.value = true
-            importErrorMessage.value = null
+            message.value = null
 
             runCatching {
                 appContainer.libraryRepository.importBook(uri)
+            }.onSuccess { result ->
+                message.value = if (result.wasUpdated) {
+                    "Updated the existing library entry for this M4B."
+                } else {
+                    "Imported audiobook into your library."
+                }
             }.onFailure { throwable ->
-                importErrorMessage.value = throwable.message ?: "Unable to import this audiobook."
+                message.value = when (throwable) {
+                    is UnsupportedOperationException -> throwable.message
+                        ?: "Only .m4b files are supported in this build."
+
+                    else -> throwable.message ?: "Unable to import this audiobook."
+                }
             }
 
             isImporting.value = false
         }
     }
 
-    fun clearImportError() {
-        importErrorMessage.update { null }
+    fun clearMessage() {
+        message.update { null }
     }
 
     companion object {

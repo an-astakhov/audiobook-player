@@ -11,16 +11,21 @@ import dev.audiobookplayer.domain.model.BookDetail
 import dev.audiobookplayer.domain.model.DurationFormatter
 import dev.audiobookplayer.playback.controller.PlaybackState
 import java.util.Locale
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class BookUiState(
     val isLoading: Boolean = true,
     val book: BookDetail? = null,
     val playbackState: PlaybackState = PlaybackState(),
+    val isDeleting: Boolean = false,
+    val message: String? = null,
+    val wasDeleted: Boolean = false,
 ) {
     val isActiveBook: Boolean
         get() = book?.id == playbackState.activeBookId
@@ -102,13 +107,29 @@ class BookViewModel(
     private val appContainer: AppContainer,
     private val bookId: String,
 ) : ViewModel() {
+    private val isDeleting = MutableStateFlow(false)
+    private val message = MutableStateFlow<String?>(null)
+    private val wasDeleted = MutableStateFlow(false)
+
     val uiState: StateFlow<BookUiState> = appContainer.libraryRepository
         .observeBook(bookId)
         .combine(appContainer.playbackController.state) { book, playbackState ->
+            book to playbackState
+        }
+        .combine(isDeleting) { (book, playbackState), deleting ->
+            Triple(book, playbackState, deleting)
+        }
+        .combine(message) { (book, playbackState, deleting), currentMessage ->
+            Quadruple(book, playbackState, deleting, currentMessage)
+        }
+        .combine(wasDeleted) { (book, playbackState, deleting, currentMessage), deleted ->
             BookUiState(
                 isLoading = false,
                 book = book,
                 playbackState = playbackState,
+                isDeleting = deleting,
+                message = currentMessage,
+                wasDeleted = deleted,
             )
         }
         .stateIn(
@@ -169,6 +190,30 @@ class BookViewModel(
         }
     }
 
+    fun removeBook() {
+        if (isDeleting.value) return
+
+        viewModelScope.launch {
+            isDeleting.value = true
+            message.value = null
+
+            runCatching {
+                appContainer.playbackController.stopForRemovedBook(bookId)
+                appContainer.libraryRepository.deleteBook(bookId)
+            }.onSuccess {
+                wasDeleted.value = true
+            }.onFailure { throwable ->
+                message.value = throwable.message ?: "Unable to remove this audiobook right now."
+            }
+
+            isDeleting.value = false
+        }
+    }
+
+    fun clearMessage() {
+        message.update { null }
+    }
+
     companion object {
         fun factory(
             appContainer: AppContainer,
@@ -183,3 +228,10 @@ class BookViewModel(
         }
     }
 }
+
+private data class Quadruple<A, B, C, D>(
+    val first: A,
+    val second: B,
+    val third: C,
+    val fourth: D,
+)
