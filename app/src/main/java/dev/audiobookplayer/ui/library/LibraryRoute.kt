@@ -41,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -51,6 +52,10 @@ import dev.audiobookplayer.AppContainer
 import dev.audiobookplayer.domain.model.BookSummary
 import dev.audiobookplayer.ui.components.BookCoverArtwork
 import dev.audiobookplayer.ui.theme.AudiobookPlayerTheme
+import dev.audiobookplayer.ui.theme.Apricot
+import dev.audiobookplayer.ui.theme.Paper
+import dev.audiobookplayer.ui.theme.Sand
+import dev.audiobookplayer.ui.theme.WarmWhite
 
 @Composable
 fun LibraryRoute(
@@ -118,44 +123,57 @@ fun LibraryScreen(
                 CircularProgressIndicator()
             }
         } else {
-            LazyColumn(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                WarmWhite,
+                                Paper,
+                                Sand.copy(alpha = 0.28f),
+                                Apricot.copy(alpha = 0.22f),
+                            ),
+                        ),
+                    )
                     .padding(innerPadding)
                     .statusBarsPadding()
                     .navigationBarsPadding(),
-                contentPadding = PaddingValues(start = 22.dp, top = 12.dp, end = 22.dp, bottom = 28.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
-                item {
-                    LibraryHeader(
-                        isImporting = uiState.isImporting,
-                        onImportBook = onImportBook,
-                    )
-                }
-
-                if (uiState.books.isEmpty()) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 22.dp, top = 12.dp, end = 22.dp, bottom = 28.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                ) {
                     item {
-                        EmptyLibraryState(
+                        LibraryHeader(
                             isImporting = uiState.isImporting,
                             onImportBook = onImportBook,
                         )
                     }
-                } else {
-                    item {
-                        Text(
-                            text = "Recently imported",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
 
-                    items(uiState.books, key = { it.id }) { book ->
-                        BookCard(
-                            book = book,
-                            onClick = { onOpenBook(book.id) },
-                        )
+                    if (uiState.books.isEmpty()) {
+                        item {
+                            EmptyLibraryState(
+                                isImporting = uiState.isImporting,
+                                onImportBook = onImportBook,
+                            )
+                        }
+                    } else {
+                        item {
+                            Text(
+                                text = "Recently imported",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+
+                        items(uiState.books, key = { it.id }) { book ->
+                            BookCard(
+                                book = book,
+                                onClick = { onOpenBook(book.id) },
+                            )
+                        }
                     }
                 }
             }
@@ -219,12 +237,12 @@ private fun EmptyLibraryState(
         modifier = Modifier
             .fillMaxWidth()
             .height(580.dp),
-            contentAlignment = Alignment.Center,
+        contentAlignment = Alignment.Center,
     ) {
         Card(
             shape = RoundedCornerShape(30.dp),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface,
+                containerColor = WarmWhite,
             ),
         ) {
             Column(
@@ -284,7 +302,7 @@ private fun BookCard(
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = WarmWhite,
         ),
     ) {
         Row(

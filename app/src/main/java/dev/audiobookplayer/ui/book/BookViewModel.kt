@@ -75,6 +75,9 @@ data class BookUiState(
     val remainingBookMs: Long
         get() = (effectiveDurationMs - effectivePositionMs).coerceAtLeast(0L)
 
+    val adjustedRemainingBookMs: Long
+        get() = (remainingBookMs / effectivePlaybackSpeed.coerceAtLeast(0.1f)).toLong()
+
     val progressPercent: Int
         get() = DurationFormatter.progressPercent(
             positionMs = effectivePositionMs,
@@ -94,7 +97,7 @@ data class BookUiState(
         get() = "-${DurationFormatter.formatPlaybackPosition(currentChapterRemainingMs)}"
 
     val bookRemainingLabel: String
-        get() = "${DurationFormatter.formatDuration(remainingBookMs)} left"
+        get() = "${DurationFormatter.formatDuration(adjustedRemainingBookMs)} left"
 
     val effectivePlaybackSpeed: Float
         get() = if (isActiveBook) playbackState.playbackSpeed else (book?.playbackSpeed ?: 1f)
